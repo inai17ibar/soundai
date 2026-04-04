@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# uv / venv
+.venv/
+.uv/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Audio samples (large files — store separately)
+data/samples/
+
+# Generated embeddings and indexes
+data/embeddings/
+
+# CLAP model checkpoints (downloaded automatically)
+*.pt
+*.pth
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
