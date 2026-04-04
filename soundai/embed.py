@@ -23,7 +23,7 @@ SUPPORTED_EXTENSIONS = {".wav", ".aiff", ".aif", ".mp3", ".flac", ".ogg"}
 # Music-optimised HTSAT-base checkpoint.
 # Downloaded to the laion_clap package directory on first use.
 _LAION_CLAP_PKG_DIR = os.path.dirname(os.path.realpath(laion_clap.__file__))
-DEFAULT_MODEL = os.path.join(_LAION_CLAP_PKG_DIR, "music_audioset_epoch_15_esc_90.14.pt")
+DEFAULT_MODEL = os.path.join(_LAION_CLAP_PKG_DIR, "630k-audioset-best.pt")
 
 
 class CLAPEmbedder:
@@ -56,7 +56,7 @@ class CLAPEmbedder:
         if self._model is None:
             self._model = laion_clap.CLAP_Module(
                 enable_fusion=False,
-                amodel="HTSAT-base",
+                amodel="HTSAT-tiny",
             )
             self._model.load_ckpt(self._model_name)
         return self._model

@@ -11,8 +11,8 @@ dependencies = [
     "faiss-cpu>=1.8.0",
     "pandas>=2.2",
     "tqdm>=4.66",
-    "torch>=2.11.0",
-    "torchvision>=0.26.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
 ]
 
 [project.optional-dependencies]
@@ -21,6 +21,9 @@ dev = [
     "ipywidgets>=8.0",
     "matplotlib>=3.8",
     "umap-learn>=0.5",
+]
+web = [
+    "gradio>=5.0",
 ]
 
 [build-system]
