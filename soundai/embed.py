@@ -7,6 +7,7 @@ search and natural language queries.
 
 from __future__ import annotations
 
+import os
 import warnings
 from pathlib import Path
 
@@ -19,8 +20,10 @@ with warnings.catch_warnings():
 
 SUPPORTED_EXTENSIONS = {".wav", ".aiff", ".aif", ".mp3", ".flac", ".ogg"}
 
-# Default checkpoint: HTSAT-RoBERTa fused model (music-optimised)
-DEFAULT_MODEL = "music_audioset_epoch_15_esc_90.14.pt"
+# Music-optimised HTSAT-base checkpoint.
+# Downloaded to the laion_clap package directory on first use.
+_LAION_CLAP_PKG_DIR = os.path.dirname(os.path.realpath(laion_clap.__file__))
+DEFAULT_MODEL = os.path.join(_LAION_CLAP_PKG_DIR, "music_audioset_epoch_15_esc_90.14.pt")
 
 
 class CLAPEmbedder:
