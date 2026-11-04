@@ -72,3 +72,7 @@ data/samples/
     ├── bass_loop_Am_90bpm.wav
     └── ...
 ```
+
+## hil-eval による人間レビュー（dogfood）
+
+検索結果を hil-eval のレビュー UI で耳で確認し、precision@k と judge の閾値を測る手順は [docs/hil-eval-dogfood.md](docs/hil-eval-dogfood.md) を参照。
