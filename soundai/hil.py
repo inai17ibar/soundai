@@ -39,7 +39,8 @@ def reviewed_search(searcher, query, k=5, *, project=PROJECT, tags=None, thresho
     """
     @hil.review(judge=judge_result, threshold=threshold, audit_rate=audit_rate,
                 inputs=["query", "sample_path", "rank", "audio"],
-                options=OPTIONS, project=project, tags=tags)
+                options=OPTIONS, project=project, tags=tags,
+                assets=["audio"], name="search_result")
     def search_result(query, sample_path, rank, audio, score, margin):
         return {"proposed": "relevant" if score >= RELEVANCE_TAU else "not_relevant"}
 
@@ -49,7 +50,7 @@ def reviewed_search(searcher, query, k=5, *, project=PROJECT, tags=None, thresho
         score = float(result["score"])
         margin = score - float(results[i + 1]["score"]) if i + 1 < len(results) else 0.0
         path = str(result["path"])
-        outputs.append(search_result(query, path, i + 1, Path(path), score, margin))
+        outputs.append(search_result(query, path, i + 1, path, score, margin))
     return outputs
 
 

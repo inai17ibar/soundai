@@ -66,7 +66,7 @@ def test_decorator_audio_simulator_and_metrics(tmp_path):
     with TestClient(create_app(SQLiteStore(db)), backend_options={"loop_factory": test_loop}) as http:
         for item in items:
             assert item.options == ['relevant', 'not_relevant']
-            assert item.input['audio'] == {'$asset': item.assets[0].sha256}
+            assert item.input['audio']['$asset'] == item.assets[0].sha256
             assert 'score' not in item.input
             assert item.assets[0].mime == 'audio/wav'
             assert http.get('/v1/blobs/' + item.assets[0].sha256).content == paths[0].read_bytes()

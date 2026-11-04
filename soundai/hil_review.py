@@ -1,8 +1,8 @@
 """Human-in-the-loop relevance review for text search, powered by hil-eval.
 
 Each text query becomes one hil-eval review item whose output is the top-k
-result list; every result carries its audio file as a ``Path`` so hil-eval
-stores it as a content-addressed audio asset that the review UI can play.
+result list; ``assets=["output[*].audio"]`` makes hil-eval store each result's
+audio path as a content-addressed audio asset (ordered by rank) for the UI.
 """
 
 from __future__ import annotations
@@ -23,11 +23,11 @@ PROJECT = "soundai-text-search"
 
 
 def to_review_output(results: list[dict]) -> list[dict]:
-    """Convert search results so hil-eval captures each file as an audio asset."""
+    """Shape search results for review; ``audio`` stays a plain path string."""
     out = []
     for rank, r in enumerate(results, start=1):
         p = Path(str(r["path"]))
-        out.append({"rank": rank, "name": p.name, "score": round(float(r["score"]), 4), "audio": p})
+        out.append({"rank": rank, "name": p.name, "score": round(float(r["score"]), 4), "audio": str(p)})
     return out
 
 
@@ -47,7 +47,7 @@ def make_reviewed_search(searcher: SampleSearcher, threshold: float = 1.0, audit
     """
 
     @hil.review(judge=score_judge, threshold=threshold, audit_rate=audit_rate, project=PROJECT,
-                tags={"mode": "text"})
+                tags={"mode": "text"}, assets=["output[*].audio"], name="search_text")
     def search_text(query: str, k: int = 5) -> list[dict]:
         return to_review_output(searcher.search_by_text(query, k=k))
 
