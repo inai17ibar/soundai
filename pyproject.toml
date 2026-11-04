@@ -26,7 +26,9 @@ web = [
     "gradio>=5.0",
 ]
 hil = [
-    "hil-eval[server]",
+    "hil-eval[server,cli,hf]>=0.1.1",
+    "pyarrow<18",  # numpy 1.26 pin (Apple Silicon) needs pyarrow 17
+    "httpx>=0.27",
 ]
 
 [build-system]
@@ -37,7 +39,7 @@ build-backend = "hatchling.build"
 packages = ["soundai"]
 
 [tool.uv.sources]
-hil-eval = { path = "../../hil-eval", editable = true }
+hil-eval = { git = "https://github.com/inai17ibar/hil-eval", tag = "v0.1.1" }
 
 [dependency-groups]
 dev = [

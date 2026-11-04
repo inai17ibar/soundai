@@ -8,21 +8,17 @@ search and natural language queries.
 from __future__ import annotations
 
 import os
-import warnings
+import importlib.util
 from pathlib import Path
 
 import numpy as np
-
-# Suppress noisy warnings from laion_clap on import
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    import laion_clap  # type: ignore
 
 SUPPORTED_EXTENSIONS = {".wav", ".aiff", ".aif", ".mp3", ".flac", ".ogg"}
 
 # Music-optimised HTSAT-base checkpoint.
 # Downloaded to the laion_clap package directory on first use.
-_LAION_CLAP_PKG_DIR = os.path.dirname(os.path.realpath(laion_clap.__file__))
+_CLAP_SPEC = importlib.util.find_spec("laion_clap")
+_LAION_CLAP_PKG_DIR = os.path.dirname(_CLAP_SPEC.origin) if _CLAP_SPEC and _CLAP_SPEC.origin else ""
 DEFAULT_MODEL = os.path.join(_LAION_CLAP_PKG_DIR, "630k-audioset-best.pt")
 
 
@@ -54,6 +50,8 @@ class CLAPEmbedder:
     @property
     def model(self) -> laion_clap.CLAP_Module:
         if self._model is None:
+            import laion_clap
+
             self._model = laion_clap.CLAP_Module(
                 enable_fusion=False,
                 amodel="HTSAT-tiny",
