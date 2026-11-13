@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-RULES_VERSION = "0.1.0"
+RULES_VERSION = "0.2.0"
 
 FAMILIES: tuple[str, ...] = (
     "drums",
@@ -27,7 +27,7 @@ FAMILIES: tuple[str, ...] = (
 )
 
 LEAVES_BY_FAMILY: dict[str, tuple[str, ...]] = {
-    "drums": ("kick", "snare", "clap", "hihat", "cymbal", "tom", "perc", "full", "unknown"),
+    "drums": ("kick", "snare", "clap", "hihat", "cymbal", "tom", "perc", "full", "fill", "unknown"),
     "bass": ("synth_bass", "sub_808", "acoustic_bass", "unknown"),
     "keys": ("piano", "epiano", "organ", "other_keys", "unknown"),
     "synth": ("lead", "pad", "pluck", "arp", "chord", "unknown"),
@@ -164,9 +164,10 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("cymbal", family="drums", leaf="cymbal"),
     _kw("cymbals", family="drums", leaf="cymbal"),
     _kw("cym", family="drums", leaf="cymbal", short=True),
+    _kw("revcym", family="drums", leaf="cymbal"),
     _kw("crash", family="drums", leaf="cymbal"),
     _kw("crashes", family="drums", leaf="cymbal"),
-    _kw("ride", family="drums", leaf="cymbal"),
+    _kw("ride", family="drums", leaf="cymbal", short=True),
     _kw("splash", family="drums", leaf="cymbal"),
     _kw("china", family="drums", leaf="cymbal"),
     # --- drums: tom ---
@@ -193,6 +194,8 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("bongo", family="drums", leaf="perc"),
     _kw("bongos", family="drums", leaf="perc"),
     _kw("cowbell", family="drums", leaf="perc"),
+    _kw("timbale", family="drums", leaf="perc"),
+    _kw("timbales", family="drums", leaf="perc"),
     _kw("clave", family="drums", leaf="perc"),
     _kw("triangle", family="drums", leaf="perc", weak=True),
     _kw("block", family="drums", leaf="perc", weak=True),
@@ -213,8 +216,10 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("grooves", family="drums", leaf="full", weak=True),
     _kw("kit", family="drums", leaf="full", weak=True),
     _kw("tops", family="drums", leaf="full", weak=True),
-    _kw("fill", family="drums", leaf="full", weak=True),
-    _kw("fills", family="drums", leaf="full", weak=True),
+    _kw("drum", "fill", family="drums", leaf="fill"),
+    _kw("drum", "fills", family="drums", leaf="fill"),
+    _kw("fill", family="drums", leaf="fill"),
+    _kw("fills", family="drums", leaf="fill"),
     _kw("break", family="drums", leaf="full", weak=True),
     _kw("breaks", family="drums", leaf="full", weak=True),
     # --- bass ---
@@ -234,6 +239,7 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("sub", family="bass", leaf="sub_808", weak=True),
     _kw("reese", family="bass", leaf="synth_bass"),
     _kw("wobble", family="bass", leaf="synth_bass"),
+    _kw("wobbly", family="bass", leaf="synth_bass", weak=True),
     _kw("bass", family="bass", leaf="synth_bass"),
     _kw("bs", family="bass", leaf="synth_bass", short=True),
     # --- keys ---
@@ -271,7 +277,10 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("pd", family="synth", leaf="pad", short=True),
     _kw("pluck", family="synth", leaf="pluck"),
     _kw("plucks", family="synth", leaf="pluck"),
+    _kw("plucked", family="synth", leaf="pluck"),
     _kw("plk", family="synth", leaf="pluck", short=True),
+    _kw("hoover", family="synth", leaf="lead"),
+    _kw("hoovers", family="synth", leaf="lead"),
     _kw("stab", family="synth", leaf="chord"),
     _kw("stabs", family="synth", leaf="chord"),
     _kw("chord", family="synth", leaf="chord"),
@@ -326,6 +335,8 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("winds", family="woodwind", leaf="woodwind"),
     _kw("flute", family="woodwind", leaf="woodwind"),
     _kw("flutes", family="woodwind", leaf="woodwind"),
+    _kw("whistle", family="woodwind", leaf="woodwind"),
+    _kw("whistles", family="woodwind", leaf="woodwind"),
     _kw("fl", family="woodwind", leaf="woodwind", short=True),
     _kw("clarinet", family="woodwind", leaf="woodwind"),
     _kw("oboe", family="woodwind", leaf="woodwind"),
@@ -333,9 +344,11 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("sax", family="woodwind", leaf="woodwind"),
     _kw("saxophone", family="woodwind", leaf="woodwind"),
     # --- mallet ---
+    _kw("mallet", family="mallet", leaf="mallet"),
+    _kw("mallets", family="mallet", leaf="mallet"),
     _kw("marimba", family="mallet", leaf="mallet"),
     _kw("vibraphone", family="mallet", leaf="mallet"),
-    _kw("vibes", family="mallet", leaf="mallet"),
+    _kw("vibes", family="mallet", leaf="mallet", short=True),
     _kw("glock", family="mallet", leaf="mallet"),
     _kw("kalimba", family="mallet", leaf="mallet"),
     _kw("bell", family="mallet", leaf="mallet", weak=True),
@@ -343,6 +356,9 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     # --- vocal ---
     _kw("vocal", "lead", family="vocal", leaf="vocal"),
     _kw("lead", "vocal", family="vocal", leaf="vocal"),
+    _kw("talk", "box", family="vocal", leaf="vocal"),
+    _kw("talkbox", family="vocal", leaf="vocal"),
+    _kw("vocoder", family="vocal", leaf="vocal"),
     _kw("acapella", family="vocal", leaf="vocal"),
     _kw("a", "cappella", family="vocal", leaf="vocal"),
     _kw("choir", family="vocal", leaf="vocal"),
@@ -363,6 +379,10 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("riser", family="fx", leaf="fx"),
     _kw("uplifter", family="fx", leaf="fx"),
     _kw("downlifter", family="fx", leaf="fx"),
+    _kw("downlift", family="fx", leaf="fx"),
+    _kw("uplift", family="fx", leaf="fx", weak=True),
+    _kw("lifter", family="fx", leaf="fx"),
+    _kw("lifters", family="fx", leaf="fx"),
     _kw("sweep", family="fx", leaf="fx"),
     _kw("impact", family="fx", leaf="fx"),
     _kw("whoosh", family="fx", leaf="fx"),
@@ -370,6 +390,7 @@ INSTRUMENT_KEYWORDS: tuple[Keyword, ...] = (
     _kw("transition", family="fx", leaf="fx"),
     _kw("noise", family="fx", leaf="fx", weak=True),
     _kw("crackle", family="fx", leaf="fx"),
+    _kw("vinyl", family="fx", leaf="fx", weak=True),
     _kw("texture", family="fx", leaf="fx", weak=True),
     _kw("notification", family="fx", leaf="fx"),
     _kw("interface", family="fx", leaf="fx"),
@@ -417,6 +438,33 @@ TYPE_ONESHOT_TOKENS = frozenset({
     "oneshot", "oneshots", "shot", "shots", "hit", "hits", "single",
 })
 # "os" is applied only with family/type context (it is also a pack prefix).
+
+# Weak type cues: a drum fill without One_Shots in the path is typically a short loop.
+TYPE_LOOP_WEAK_TOKENS = frozenset({"fill", "fills"})
+
+# Mixed arrangements — do not pick a single instrument from incidental words.
+MIXED_ARRANGEMENT_TOKENS = frozenset({
+    "songstarter", "songstarters",
+})
+
+# Weak synth-leaf cues, applied only when family is already synth and the leaf
+# is still unknown.  Confidence is medium or low (never high).
+SYNTH_WEAK_LEAF_CUES: dict[str, str] = {
+    "swell": "pad",
+    "swells": "pad",
+    "saw": "lead",
+    "supersaw": "lead",
+    "pwm": "lead",
+    "formant": "lead",
+}
+
+# Minimum size (bytes) at which a kit stem is treated as a loop rather than a
+# one-shot.  One-shots in this library are almost always well under 2 MB;
+# Big EDM Stems kit files are ~19–36 MB full-length stems.
+KIT_STEM_LOOP_MIN_BYTES = 4_000_000
+
+# Tokens that name a mixed stem kit (not "this file is a drum kit").
+KIT_TOKENS = frozenset({"kit", "kits"})
 
 # Packs whose name alone is a reliable single-instrument signal.
 # Matched against the lowercased pack directory name as a substring.

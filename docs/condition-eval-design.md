@@ -1,6 +1,6 @@
 # 条件ベース評価の設計案（ドラフト）
 
-> 状態: 提案。SSD の調査（§4）が終わったら確定する。
+> 状態: Splice パック（3,711 本）で抽出器 v0.2.0 を実装済み。辞書と優先規則は §1.4 / §2.8 を参照。
 > 前提: 音の類似度や好みは評価しない。評価するのは **「検索結果がクエリで明示した条件（楽器・種別・BPM・キーなど）を満たすか」** だけ。
 > 制約: 音声はどこにもアップロードしない（hil-eval はローカルの `serve` だけで使う）。音声・メタデータ・インデックスは git の管理外（`data/`、`.hil/`）。
 
@@ -35,6 +35,7 @@
 | drums | tom | タム | tom, toms, floortom, "hi tom", "lo tom" |
 | drums | perc | パーカッション | perc, percussion, shaker, shkr, tamb, tambourine, conga, bongo, cowbell, clave, block, triangle |
 | drums | full | ドラムループ一式 | drum loop, drums, beat, groove, top loop, "full drums" |
+| drums | fill | ドラムフィル | fill, fills, drum fill |
 | bass | synth_bass | シンセベース | bass, bs, synth bass, reese, wobble |
 | bass | sub_808 | 808／サブベース | 808（ベースとして使うもの）, sub, subbass |
 | bass | acoustic_bass | エレキ／ウッドベース | electric bass, upright, double bass, slap, "bass guitar" |
@@ -42,19 +43,19 @@
 | keys | epiano | エレピ | rhodes, wurli, wurlitzer, ep, epiano, "e-piano" |
 | keys | organ | オルガン | organ, org, hammond, b3 |
 | keys | other_keys | その他の鍵盤 | keys, clav, celesta, harpsichord |
-| synth | lead | リード | lead, ld |
+| synth | lead | リード | lead, ld, hoover |
 | synth | pad | パッド | pad, pd, atmos, atmosphere, drone |
-| synth | pluck | プラック | pluck, plk |
+| synth | pluck | プラック | pluck, plucked, plk |
 | synth | arp | アルペジオ | arp, arpeggio, seq, sequence |
 | synth | chord | シンセコード | chord, chords, stab |
 | guitar | electric | エレキギター | gtr, guitar, egtr, electric, riff, "power chord" |
 | guitar | acoustic | アコギ | acoustic, agtr, nylon, steel |
 | strings | strings | ストリングス | strings, str, violin, vln, viola, cello, pizz, pizzicato, orchestra |
 | brass | brass | ブラス | brass, horn, horns, trumpet, tpt, trombone, tbn, sax（※） |
-| woodwind | woodwind | 木管 | flute, fl, clarinet, oboe, sax（※）, bassoon |
-| mallet | mallet | マレット／ベル | bell, bells, marimba, vibes, vibraphone, glock, kalimba |
-| vocal | vocal | ボーカル | vox, vocal, vocals, voc, acapella, chant, choir, adlib, phrase, spoken |
-| fx | fx | 効果音 | fx, sfx, riser, uplifter, downlifter, sweep, impact, hit, whoosh, noise, foley, transition, reverse, rev |
+| woodwind | woodwind | 木管 | flute, fl, clarinet, oboe, sax（※）, bassoon, whistle |
+| mallet | mallet | マレット／ベル | mallet, mallets, bell, bells, marimba, vibes, vibraphone, glock, kalimba |
+| vocal | vocal | ボーカル | vox, vocal, vocals, voc, acapella, chant, choir, adlib, phrase, spoken, talk box, vocoder |
+| fx | fx | 効果音 | fx, sfx, riser, uplifter, downlifter, lifter, sweep, impact, hit, whoosh, noise, foley, transition, crackle, reverse, rev |
 | world | world | 民族楽器 | sitar, koto, shamisen, tabla, steel drum など |
 | unknown | unknown | 不明 | — |
 
@@ -64,7 +65,7 @@
 
 | 属性 | 値 | 取り出すパターン |
 |---|---|---|
-| type | loop / one_shot / unknown | `loop`, `lp`, `loops` → loop。`one shot`, `oneshot`, `os`, `shot`, `hit`, `single` → one_shot。BPM があって長さが 2 秒を超えるときは補助的に loop |
+| type | loop / one_shot / unknown | `loop`, `lp`, `loops` → loop。`one shot`, `oneshot`, `os`, `shot`, `hit`, `single` → one_shot。ドラムフィル（`fill`）は One Shots フォルダがなければ loop。キットステムは §2.8。vocal/fx で種別不明なら one_shot（low） |
 | bpm | 整数（40〜220） | `(\d{2,3})\s?bpm`、`_(\d{2,3})_` は文脈つきのときだけ（§2.3） |
 | key | 例: `A minor`, `F# major` | `\b([A-G])(#\|b\|s\|sharp\|flat)?\s?(m\|min\|minor\|maj\|major)?\b`。`Am`、`Cmaj`、`F#m`、`Bbmin` を正規化する |
 | genre | house / techno / hiphop / trap / lofi / dnb / ... | 主にパック名から取る。ファイル名から取れることは少ない |
@@ -83,6 +84,21 @@
 - **`sn`、`ep`、`os`、`ld`、`fl` などの短い略語**: 誤検知しやすいので、親フォルダの family と合うときだけ採用する。
 - **キー名とトークンの衝突**: `A`、`E`、`Bb` の 1 文字トークンは、`bpm` や `min/maj` と並んでいる場合か、ファイル名の末尾にある場合だけキーとして扱う。
 - **数字**: `01`〜`99` の連番と BPM の取り違えに注意（§2.3）。
+
+
+### 1.4 v0.2.0 で足した辞書と優先規則
+
+- **新しい leaf**: `drums/fill`。`fill` / `drum fill` は `drums/full` に落とさない。`snare_fill` も fill。ただし `bass_loop_fill` のように他の楽器があるときはその楽器を優先する。
+- **追加した語**: whistle（woodwind）、hoover（synth/lead）、plucked、mallet(s)、talk box / vocoder、lifter(s)、revcym、timbale、vinyl（weak fx）。`ride` は drums フォルダがあるときだけシンバル（`bass_synth_ride` を誤検出しない）。`vibes` も同様に短略語扱いで、`rnb_vibes` をビブラフォンにしない。
+- **songstarter**: ファイル名に楽器語があっても mixed arrangement として `unknown` のまま残す（フレーズの主題であり、単一楽器ではない）。
+- **synth の leaf 分け**: 同じ family の中では `chord` / `lead` / `pad` / `pluck` / `arp` を `synth/unknown` より優先する（以前は GENERIC 扱いで潰していた）。残った `synth/unknown` には弱い手がかり（`swell(s)` → pad、`saw` / `supersaw` → lead）を **medium または low だけ** で付ける。
+- **矛盾の整理**: ファイル名の楽器を優先する。次は矛盾と見なさない。
+  - 親フォルダの弱い `kit`（`EDM_Kit_G_128bpm`、`BPE_120_kit_loop_…` は混合ステムの容器）
+  - `bass` + `synth`、`vocal` + `riff`、`guitar` + `pluck`/`pad`/`lead`
+  - `synth_brass` のように Synth フォルダで音色語が付いているもの
+  - 楽器名に付いた incidental な FX 語（`crackle`、`impact`）
+  - `Guitar_&_Plucked` のような 2 family 混合フォルダ
+- **残す矛盾**（レビュー対象）: 親が Brass/Horns でファイル名が sax、`keys_mallet` / `keys_guitar`、キックとサブベースの併記、ドラムループに vox が載っているものなど、本当に曖昧なもの。
 
 ---
 
@@ -165,6 +181,20 @@ instrument と type は、次の順で強い信号を採用する（上ほど強
 - 修正後の値はレビューのコメントか `edit` アクションで受け取る（hil-eval の機能に合わせて決める）。結果は `labels_overrides.parquet`（file_id → 修正値）に保存する。カタログは「規則の出力に上書きをマージしたもの」として再生成する（上書きは規則のバージョンが変わっても保持する）。
 - レビューの対象: (a) low と conflict の全件、(b) high と medium から family ごとに層別ランダムで抽出（推定精度を測るため。例: 各 family 30 件）。high の監査で誤り率が高かった規則は見直す。
 - 理由コードを追加する: `wrong_type`、`wrong_bpm`、`wrong_key`、`ambiguous_name`。
+
+
+### 2.8 種別の補助ヒューリスティック（v0.2.0）
+
+音声は読まない。パスとインデックス上のファイルサイズだけを使う。
+
+**キットステム → loop**（Big EDM Stems など）:
+
+1. パック名に `stems` がある、または親／祖先フォルダが `kit` と BPM（`EDM_Kit_G_128bpm`、`BPE_120_kit_loop_…`）を含む。
+2. フォルダ側に BPM またはキーがある（またはパック名が stems）。
+3. サイズが分かっていて 4 MB 以上なら確信度 medium。サイズ不明なら low。
+4. ステム名の単独の `hit`（`Snare_Hit`）は one_shot にしない。そのパートのループである。明示的な `one shot` があればそちらを優先する。
+
+**その他**: `drum fill` / `fills` フォルダは One Shots がなければ loop（medium）。vocal と fx で種別キーワードがなければ one_shot（low）。
 
 ---
 

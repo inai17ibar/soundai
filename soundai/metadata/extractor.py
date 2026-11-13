@@ -14,15 +14,20 @@ from soundai.metadata.taxonomy import (
     GENERIC_LEAVES,
     GENRE_PHRASES,
     INSTRUMENT_KEYWORDS,
+    KIT_STEM_LOOP_MIN_BYTES,
+    KIT_TOKENS,
     Keyword,
     LEAF_TO_FAMILY,
+    MIXED_ARRANGEMENT_TOKENS,
     NEGATION_TOKENS,
     PACK_PREFIX_TOKENS,
     RULES_VERSION,
     SHARP_TO_CANON,
     SINGLE_INSTRUMENT_PACKS,
+    SYNTH_WEAK_LEAF_CUES,
     TR808_TOKENS,
     TYPE_LOOP_TOKENS,
+    TYPE_LOOP_WEAK_TOKENS,
     TYPE_ONESHOT_TOKENS,
 )
 from soundai.metadata.tokenize import PathLayers, bigrams, is_junk_path, split_rel_path, tokenize_component
@@ -109,12 +114,14 @@ def extract_metadata(rel_path: str, *, size_bytes: int | None = None) -> Extract
     rules.extend(inst_rules)
     matched_tokens.extend(inst_toks)
 
-    typ, typ_conf, typ_source, typ_rules, typ_toks = _extract_type(layers)
-    rules.extend(typ_rules)
-    matched_tokens.extend(typ_toks)
-
     bpm, bpm_source, bpm_rules = _extract_bpm(layers)
     rules.extend(bpm_rules)
+
+    typ, typ_conf, typ_source, typ_rules, typ_toks = _extract_type(
+        layers, size_bytes=size_bytes, family=family, bpm=bpm,
+    )
+    rules.extend(typ_rules)
+    matched_tokens.extend(typ_toks)
 
     key_root, key_mode, key_rules = _extract_key(layers)
     rules.extend(key_rules)
@@ -202,6 +209,44 @@ def _has_tr808(tokens: list[str]) -> bool:
     return False
 
 
+def _path_token_set(layers: PathLayers) -> set[str]:
+    tokens: set[str] = set(layers.filename) | set(layers.parent) | set(layers.pack_tokens)
+    for anc in layers.ancestors:
+        tokens.update(anc)
+    return tokens
+
+
+def _is_mixed_arrangement(layers: PathLayers) -> bool:
+    """Songstarters are full arrangements, not a single instrument."""
+    return bool(_path_token_set(layers) & MIXED_ARRANGEMENT_TOKENS)
+
+
+def _is_mixed_kit_folder(tokens: list[str]) -> bool:
+    """``EDM_Kit_G_128bpm`` / ``BPE_120_kit_loop_heavy_Amin`` are mixed stem kits."""
+    if not (set(tokens) & KIT_TOKENS):
+        return False
+    if "bpm" in tokens:
+        return True
+    for tok in tokens:
+        if tok.isdigit() and not tok.startswith("0"):
+            try:
+                n = int(tok)
+            except ValueError:
+                continue
+            if _in_range(n, BPM_CONTEXT_RANGE):
+                return True
+    return False
+
+
+def _is_substantive_match(m: Match) -> bool:
+    """Weak generic cues (kit, beat, groove) are not enough to declare a conflict."""
+    if m.keyword.tokens in {("kit",), ("kits",), ("beat",), ("beats",), ("groove",), ("grooves")}:
+        return False
+    if m.keyword.weak and m.leaf in GENERIC_LEAVES:
+        return False
+    return True
+
+
 def _raw_matches(tokens: list[str], source: Source) -> list[Match]:
     if not tokens:
         return []
@@ -274,8 +319,35 @@ def _filter_matches(matches: list[Match], layers: PathLayers, family_hints: set[
         # Weak keywords in ancestors (e.g. "beat" in a leftover folder) are noisy.
         if m.keyword.weak and m.source == "ancestor":
             continue
+        # "kit" in a mixed stem-kit folder is not drums/full.
+        if m.keyword.tokens in {("kit",), ("kits")} and m.source in {"parent", "ancestor", "pack"}:
+            layer_tokens = {
+                "parent": layers.parent,
+                "pack": layers.pack_tokens,
+            }.get(m.source)
+            if m.source == "ancestor":
+                if any(_is_mixed_kit_folder(anc) for anc in layers.ancestors):
+                    continue
+            elif layer_tokens is not None and _is_mixed_kit_folder(layer_tokens):
+                continue
         kept.append(m)
     return kept
+
+
+def _mixed_container_sources(layers: PathLayers) -> set[Source]:
+    """Folders like ``Guitar_&_Plucked`` or ``Piano_&_Keys`` name two families."""
+    sources: set[Source] = set()
+    for source, tokens in _iter_layers(layers):
+        if source == "filename":
+            continue
+        families = {
+            m.family
+            for m in _raw_matches(tokens, source)
+            if not m.keyword.tag_only and not m.negated
+        }
+        if len(families) > 1:
+            sources.add(source)
+    return sources
 
 
 def _drop_mixed_drum_container_leaves(matches: list[Match], layers: PathLayers) -> list[Match]:
@@ -359,11 +431,24 @@ def _disambiguate(matches: list[Match], layers: PathLayers) -> list[Match]:
     if any(m.family == "vocal" and m.leaf == "vocal" for m in matches):
         matches = [m for m in matches if not (m.family == "synth" and m.leaf == "lead")]
 
-    # guitar + lead / guitar + chord / piano + chord → keep the real instrument
+    # guitar + lead / chord / pluck / pad → keep the guitar
     if any(m.family == "guitar" for m in matches):
-        matches = [m for m in matches if not (m.family == "synth" and m.leaf in {"lead", "chord", "arp"})]
+        matches = [
+            m for m in matches
+            if not (m.family == "synth" and m.leaf in {"lead", "chord", "arp", "pluck", "pad"})
+        ]
+    # piano/keys + chord or a trailing "synth" modifier → keep the keys
     if any(m.family == "keys" for m in matches):
-        matches = [m for m in matches if not (m.family == "synth" and m.leaf in {"chord"})]
+        matches = [
+            m for m in matches
+            if not (m.family == "synth" and m.leaf in {"chord", "unknown"})
+        ]
+    # brass / woodwind + stab (synth/chord) → keep the horn
+    if any(m.family in {"brass", "woodwind"} for m in matches):
+        matches = [
+            m for m in matches
+            if not (m.family == "synth" and m.leaf in {"chord", "lead", "pluck", "pad"})
+        ]
     if any(m.family == "bass" and m.leaf in {"synth_bass", "sub_808", "acoustic_bass"} for m in matches):
         # "Bass_Pad" is a bass; "Drop_Bass_Sub" is a bass
         if any(m.leaf == "pad" for m in matches):
@@ -429,6 +514,16 @@ def _disambiguate(matches: list[Match], layers: PathLayers) -> list[Match]:
     if instrumentish and any(m.keyword.tokens == ("hit",) for m in matches):
         matches = [m for m in matches if m.keyword.tokens != ("hit",)]
 
+    # Incidental FX words (crackle, impact, noise) next to a real instrument
+    # stay as character, not the instrument (``drum_loop_popcorn_crackle``).
+    incidental_fx = {("impact",), ("crackle",), ("noise",), ("texture",), ("vinyl",)}
+    real_inst = [
+        m for m in matches
+        if m.family != "fx" and m.leaf not in {"unknown"} and _is_substantive_match(m)
+    ]
+    if real_inst and any(m.keyword.tokens in incidental_fx for m in matches):
+        matches = [m for m in matches if m.keyword.tokens not in incidental_fx]
+
     # fx token in the filename usually means the file *is* an FX
     # (``FX_Reversed_Kick``, ``SO_AF_fx_drum_roll``), unless a more specific
     # non-weak instrument is also in the *same* filename and fx is incidental.
@@ -442,6 +537,64 @@ def _disambiguate(matches: list[Match], layers: PathLayers) -> list[Match]:
         others_fn = [m for m in matches if m.source == "filename" and m.family != "fx"]
         if others_fn:
             matches = [m for m in matches if not (m.source == "filename" and m.family != "fx")]
+
+    # vocal + riff → vocal, not guitar (``vocal_riff``)
+    if any(m.family == "vocal" for m in matches):
+        matches = [
+            m for m in matches
+            if not (m.family == "guitar" and m.keyword.tokens in {("riff",), ("riffs")})
+        ]
+
+    # bass + synth (``bass_synth``, ``synth_bass``, ``synth_loop_bass``) → bass
+    if any(m.family == "bass" for m in matches):
+        matches = [m for m in matches if m.family != "synth"]
+        # ``bass_synth_brass`` is a brass-like bass, not a brass section
+        if any(m.family == "bass" and m.source == "filename" for m in matches):
+            matches = [
+                m for m in matches
+                if m.family not in {"brass", "woodwind", "mallet", "strings", "guitar"}
+            ]
+
+    # fill + a non-drum instrument (``bass_loop_fill``) keeps the instrument
+    if any(m.family == "drums" and m.leaf == "fill" for m in matches):
+        non_drum = [
+            m for m in matches
+            if m.family != "drums" and not (m.family == "fx" and m.keyword.weak)
+        ]
+        if non_drum:
+            matches = [m for m in matches if not (m.family == "drums" and m.leaf == "fill")]
+        else:
+            # ``snare_fill`` / ``drum_fill_short_snare`` is a fill, not a snare
+            matches = [
+                m for m in matches
+                if not (m.family == "drums" and m.leaf not in {"fill", "full", "unknown"})
+            ]
+
+    # world instrument (ukulele, koto, …) beats a generic pluck/guitar cue
+    if any(m.family == "world" for m in matches):
+        matches = [
+            m for m in matches
+            if not (m.family == "synth" and m.leaf == "pluck")
+            and not (m.family == "guitar" and m.keyword.weak)
+        ]
+
+    # ``synth_brass`` / ``synth_flute`` in a Synth folder: synth emulating a timbre
+    synth_category = any(
+        m.family == "synth" and m.keyword.tokens in {("synth",), ("synths")}
+        for m in matches
+        if m.source in {"filename", "parent"}
+    ) or bool(folder_tokens & {"synth", "synths"})
+    if synth_category and any(m.family == "synth" for m in matches):
+        timbre_families = {"brass", "woodwind", "mallet", "strings", "guitar"}
+        # Keep a real bass (already dropped synth above if bass present).
+        matches = [m for m in matches if m.family not in timbre_families]
+
+    # Mixed container folders (Guitar_&_Plucked, Piano_&_Keys) are not a
+    # single-instrument signal — drop those layer matches when the filename
+    # already names an instrument.
+    container_sources = _mixed_container_sources(layers)
+    if container_sources and any(m.source == "filename" for m in matches):
+        matches = [m for m in matches if m.source not in container_sources]
 
     # Prefer a specific leaf over a generic family keyword in the same source
     return matches
@@ -470,6 +623,9 @@ def _pick_instrument(
     layers: PathLayers,
 ) -> tuple[str, str, str, str | None, bool, list[str], list[str]]:
     """Return family, leaf, conf, source, conflict, rules, matched tokens."""
+    if _is_mixed_arrangement(layers):
+        return "unknown", "unknown", "none", None, False, ["instrument:mixed-arrangement"], []
+
     if not matches:
         # Pack-level single-instrument fallback
         pack_hit = _pack_instrument(layers)
@@ -490,7 +646,9 @@ def _pick_instrument(
     assert chosen_source is not None
     layer = by_source[chosen_source]
 
-    # Conflict: another high-priority source names a different family
+    # Conflict: another high-priority source names a different family,
+    # but only when both sides are substantive (filename "Lead" vs parent
+    # "EDM_Kit_…_128bpm" is not a real conflict — "kit" is a mixed container).
     conflict = False
     chosen_best = max(layer, key=_specificity)
     for src, group in by_source.items():
@@ -498,7 +656,11 @@ def _pick_instrument(
             continue
         if _SOURCE_RANK[src] >= 3 and _SOURCE_RANK[chosen_source] >= 3:
             other = max(group, key=_specificity)
-            if other.family != chosen_best.family:
+            if (
+                other.family != chosen_best.family
+                and _is_substantive_match(other)
+                and _is_substantive_match(chosen_best)
+            ):
                 conflict = True
 
     # Multiple families in the same winning layer
@@ -508,7 +670,12 @@ def _pick_instrument(
     if len({m.family for m in layer}) > 1:
         # If a clearly more specific match exists, don't flag mild generics
         top = _specificity(chosen_best)[0]
-        rivals = [m for m in layer if m.family != chosen_best.family and _specificity(m)[0] >= top]
+        rivals = [
+            m for m in layer
+            if m.family != chosen_best.family
+            and _specificity(m)[0] >= top
+            and _is_substantive_match(m)
+        ]
         if rivals:
             conflict = True
 
@@ -517,25 +684,61 @@ def _pick_instrument(
 
     # If we only have a family-level drums/full from "drum" and a more
     # specific drums leaf is also present, use the specific one.
+    # Within the same family, a named leaf (synth/chord, synth/lead, …)
+    # beats the family's default even when that leaf is "generic" in
+    # cross-family competition (guitar vs synth/chord).
     same_family = [m for m in layer if m.family == family]
-    specific = [m for m in same_family if m.leaf not in GENERIC_LEAVES and m.leaf != "unknown"]
-    if specific:
-        chosen_best = max(specific, key=_specificity)
+    named = [m for m in same_family if m.leaf != "unknown"]
+    if named:
+        non_generic = [m for m in named if m.leaf not in GENERIC_LEAVES]
+        chosen_best = max(non_generic or named, key=_specificity)
         leaf = chosen_best.leaf
 
-    # Family known, leaf not: synth with only "synth" → unknown leaf
+    # Family known, leaf not: look at other layers for a named leaf
+    # (``Loops/Pads/warm_synth.wav`` → synth/pad).
     if leaf == "unknown":
-        family = chosen_best.family
-        leaf = "unknown"
+        other_named = [
+            m for m in matches
+            if m.family == family and m.leaf != "unknown"
+        ]
+        if other_named:
+            chosen_best = max(
+                other_named,
+                key=lambda m: (_SOURCE_RANK[m.source], _specificity(m)),
+            )
+            leaf = chosen_best.leaf
+            chosen_source = chosen_best.source  # type: ignore[assignment]
+
+    # Weak cues to split remaining synth/unknown (medium/low confidence only).
+    weak_leaf_rule = None
+    if family == "synth" and leaf == "unknown":
+        weak = _synth_weak_leaf(layers)
+        if weak:
+            leaf, weak_leaf_rule = weak
 
     conf = _instrument_confidence(chosen_best, chosen_source, conflict)
+    if weak_leaf_rule and conf == "high":
+        # Never call a weak synth-leaf split "high".
+        conf = "medium"
     rules = [
         f"instrument:{chosen_source}:{chosen_best.keyword.key}->{family}/{leaf}"
     ]
     tokens = list(chosen_best.keyword.tokens)
+    if weak_leaf_rule:
+        rules.append(weak_leaf_rule)
     if conflict:
         rules.append("instrument:conflict")
     return family, leaf, conf, chosen_source, conflict, rules, tokens
+
+
+def _synth_weak_leaf(layers: PathLayers) -> tuple[str, str] | None:
+    """Split synth/unknown using weak filename/parent cues only."""
+    for source, tokens in (("filename", layers.filename), ("parent", layers.parent)):
+        for tok in tokens:
+            leaf = SYNTH_WEAK_LEAF_CUES.get(tok)
+            if leaf:
+                return leaf, f"instrument:{source}:weak_synth:{tok}->{leaf}"
+    return None
 
 
 def _instrument_confidence(match: Match, source: Source, conflict: bool) -> Conf:
@@ -588,7 +791,13 @@ def _extract_instrument(
 # Type (loop / one_shot)
 # ---------------------------------------------------------------------------
 
-def _extract_type(layers: PathLayers) -> tuple[str, str, str | None, list[str], list[str]]:
+def _extract_type(
+    layers: PathLayers,
+    *,
+    size_bytes: int | None = None,
+    family: str | None = None,
+    bpm: int | None = None,
+) -> tuple[str, str, str | None, list[str], list[str]]:
     """Return type, conf, source, rules, tokens."""
     # "os" only with context (One_Shots folder, or not a leading pack prefix).
     candidates: list[tuple[str, Source, str, list[str], bool]] = []
@@ -623,7 +832,34 @@ def _extract_type(layers: PathLayers) -> tuple[str, str, str | None, list[str], 
     for anc in layers.ancestors:
         consider(anc, "ancestor")
 
+    kit_stem = _kit_stem_loop_cue(layers, size_bytes=size_bytes, bpm=bpm)
+
+    # Bare "hit" in a kit-stem filename is the stem's role (snare hits
+    # throughout the arrangement), not a one-shot.
+    if kit_stem and candidates:
+        candidates = [
+            c for c in candidates
+            if not (c[0] == "one_shot" and c[2] in {"hit", "hits"})
+        ]
+
     if not candidates:
+        # Weak fill cue: a drum fill without One Shots in the path is a short loop.
+        fill_hit = _fill_loop_cue(layers)
+        if fill_hit:
+            typ, source, token = fill_hit
+            return typ, "medium", source, [f"type:{source}:weak_fill:{token}->{typ}"], [token]
+        if kit_stem:
+            typ, conf, source, rule = kit_stem
+            return typ, conf, source, [rule], ["kit", "stems"] if "stems" in _path_token_set(layers) else ["kit"]
+        # Vocals and FX without a type keyword are usually one-shots.
+        if family in {"vocal", "fx"}:
+            return (
+                "one_shot",
+                "low",
+                "ancestor" if family else None,
+                [f"type:default:{family}->one_shot"],
+                [],
+            )
         return "unknown", "none", None, [], []
 
     # Prefer filename, then parent, then ancestor; prefer explicit over short
@@ -644,6 +880,54 @@ def _extract_type(layers: PathLayers) -> tuple[str, str, str | None, list[str], 
         conf = "low"
     rule = f"type:{source}:{token}->{typ}"
     return typ, conf, source, [rule], toks
+
+
+def _fill_loop_cue(layers: PathLayers) -> tuple[str, Source, str] | None:
+    for source, tokens in _iter_layers(layers):
+        if source == "pack":
+            continue
+        for tok in tokens:
+            if tok in TYPE_LOOP_WEAK_TOKENS:
+                return "loop", source, tok
+    return None
+
+
+def _kit_stem_loop_cue(
+    layers: PathLayers,
+    *,
+    size_bytes: int | None,
+    bpm: int | None,
+) -> tuple[str, Conf, Source, str] | None:
+    """Infer loop for pack/kit stems (e.g. Big EDM Stems).
+
+    A stem kit is a folder that contains ``kit`` plus a BPM (or a pack
+    whose name contains ``stems``) and usually a key.  The files are
+    full-length stems of one arrangement, not one-shots.  File size, when
+    known and at least ``KIT_STEM_LOOP_MIN_BYTES`` (4 MB), confirms the
+    guess and raises confidence to medium; BPM/folder cues alone are low.
+    A bare ``hit`` in the stem name does not override this (the stem is
+    still a loop of that part).
+    """
+    pack_is_stems = "stems" in set(layers.pack_tokens)
+    kit_folder = False
+    source: Source = "pack"
+    if _is_mixed_kit_folder(layers.parent):
+        kit_folder = True
+        source = "parent"
+    elif any(_is_mixed_kit_folder(anc) for anc in layers.ancestors):
+        kit_folder = True
+        source = "ancestor"
+    if not (pack_is_stems or kit_folder):
+        return None
+    # Need a tempo or key cue so a random "kit" pack isn't forced to loop.
+    has_tempo_or_key = bpm is not None or "bpm" in _path_token_set(layers)
+    if not has_tempo_or_key and not pack_is_stems:
+        return None
+    if size_bytes is not None and size_bytes >= KIT_STEM_LOOP_MIN_BYTES:
+        return "loop", "medium", source, f"type:{source}:kit_stem_size->{size_bytes}"
+    if has_tempo_or_key or pack_is_stems:
+        return "loop", "low", source, f"type:{source}:kit_stem"
+    return None
 
 
 # ---------------------------------------------------------------------------
