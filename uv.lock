@@ -1071,7 +1071,7 @@ wheels = [
 [[package]]
 name = "hil-eval"
 version = "0.1.1"
-source = { git = "https://github.com/inai17ibar/hil-eval?branch=feat%2Faudio-assets#67196e3d24a29625572b0c03b51a9c6d9930d245" }
+source = { git = "https://github.com/inai17ibar/hil-eval?tag=v0.1.1#5c1f750397ee601246545522b472cbb858eb8ebc" }
 
 [package.optional-dependencies]
 cli = [
@@ -3656,7 +3656,7 @@ dev = [
 requires-dist = [
     { name = "faiss-cpu", specifier = ">=1.8.0" },
     { name = "gradio", marker = "extra == 'web'", specifier = ">=5.0" },
-    { name = "hil-eval", extras = ["server", "cli", "hf"], marker = "extra == 'hil'", git = "https://github.com/inai17ibar/hil-eval?branch=feat%2Faudio-assets" },
+    { name = "hil-eval", extras = ["server", "cli", "hf"], marker = "extra == 'hil'", git = "https://github.com/inai17ibar/hil-eval?tag=v0.1.1" },
     { name = "httpx", marker = "extra == 'hil'", specifier = ">=0.27" },
     { name = "ipywidgets", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "jupyterlab", marker = "extra == 'dev'", specifier = ">=4.0" },

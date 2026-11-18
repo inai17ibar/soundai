@@ -39,7 +39,7 @@ build-backend = "hatchling.build"
 packages = ["soundai"]
 
 [tool.uv.sources]
-hil-eval = { git = "https://github.com/inai17ibar/hil-eval", branch = "feat/audio-assets" }
+hil-eval = { git = "https://github.com/inai17ibar/hil-eval", tag = "v0.1.1" }
 
 [dependency-groups]
 dev = [
