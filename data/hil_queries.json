@@ -1,0 +1,82 @@
+[
+  {
+    "query": "a dog barking",
+    "category": "dog"
+  },
+  {
+    "query": "a rooster crowing",
+    "category": "rooster"
+  },
+  {
+    "query": "a pig oinking",
+    "category": "pig"
+  },
+  {
+    "query": "a cow mooing",
+    "category": "cow"
+  },
+  {
+    "query": "a frog croaking",
+    "category": "frog"
+  },
+  {
+    "query": "a cat meowing",
+    "category": "cat"
+  },
+  {
+    "query": "a hen clucking",
+    "category": "hen"
+  },
+  {
+    "query": "insects buzzing",
+    "category": "insects"
+  },
+  {
+    "query": "sheep bleating",
+    "category": "sheep"
+  },
+  {
+    "query": "a crow cawing",
+    "category": "crow"
+  },
+  {
+    "query": "rain falling",
+    "category": "rain"
+  },
+  {
+    "query": "ocean waves crashing",
+    "category": "sea_waves"
+  },
+  {
+    "query": "a crackling fire",
+    "category": "crackling_fire"
+  },
+  {
+    "query": "crickets chirping",
+    "category": "crickets"
+  },
+  {
+    "query": "birds chirping",
+    "category": "chirping_birds"
+  },
+  {
+    "query": "water dripping",
+    "category": "water_drops"
+  },
+  {
+    "query": "wind blowing",
+    "category": "wind"
+  },
+  {
+    "query": "pouring water",
+    "category": "pouring_water"
+  },
+  {
+    "query": "a toilet flushing",
+    "category": "toilet_flush"
+  },
+  {
+    "query": "a thunderstorm rumbling",
+    "category": "thunderstorm"
+  }
+]

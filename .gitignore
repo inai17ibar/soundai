@@ -33,3 +33,4 @@ data/embeddings/
 # IDE
 .vscode/
 .idea/
+.hil/
